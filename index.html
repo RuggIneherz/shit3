@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{user}}人设生成器 Pro++</title>
+  <style>
+    :root{--black:#000;--white:#fff;--gray:#f5f5f5;--line:1px solid #000;}
+    *{box-sizing:border-box}
+    body{margin:0;background:#fff;color:#000;font-family:Inter,"Helvetica Neue",Arial,sans-serif;letter-spacing:.02em}
+    .wrap{max-width:1140px;margin:0 auto;padding:36px 18px 72px}
+    .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    h1{margin:0;font-size:30px}
+    .block{border:var(--line);padding:14px;margin-bottom:12px}
+    .gray{background:var(--gray)}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width: 920px){.grid2{grid-template-columns:1fr}}
+    button,input,textarea,select{font:inherit;border:var(--line);border-radius:0;outline:none;background:#fff;color:#000}
+    button{height:38px;padding:0 14px;background:#000;color:#fff;cursor:pointer;transition:.15s ease-out}
+    button:hover{background:#fff;color:#000}
+    button:active{transform:translate(1px,1px)}
+    input,select{height:38px;padding:0 10px}
+    textarea{width:100%;padding:12px;line-height:1.7;resize:vertical}
+    .small,.tip{font-size:12px;line-height:1.5}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{border:var(--line);padding:4px 8px;font-size:12px;cursor:pointer}
+    .chip:hover{background:#000;color:#fff}
+    .history-item,.wb-item{border:var(--line);padding:9px;background:#fff;margin-bottom:7px}
+    .history-item:hover{background:#f5f5f5;cursor:pointer}
+    .meta{font-size:11px;margin-bottom:4px}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.14);display:none;align-items:center;justify-content:center;padding:12px;z-index:99}
+    .modal.show{display:flex}
+    .panel{width:min(760px,100%);border:var(--line);background:#fff;padding:14px}
+    .panel h2{margin:0 0 10px;text-align:center}
+    .field{margin-bottom:10px}
+    .field label{display:block;font-weight:600;margin-bottom:6px}
+    .field input,.field select{width:100%;background:#f7f7f7}
+    .model-row{display:flex;gap:8px}
+    .model-row select{flex:1}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <div class="top">
+    <h1>{{user}}人设生成器 Pro++</h1>
+    <button id="btnOpenSettings">API设置</button>
+  </div>
+
+  <section class="block">
+    <div class="row">
+      <button id="btnRandom">随机生成</button>
+      <button id="btnGenerate">按模板生成</button>
+      <button id="btnCopy">复制结果</button>
+      <button id="btnExport">导出TXT</button>
+      <button id="btnClearResult">清空结果</button>
+      <span class="tip" id="tip"></span>
+    </div>
+  </section>
+
+  <section class="block gray">
+    <div class="grid2">
+      <!-- 左：模板库 -->
+      <div>
+        <div style="font-weight:600;margin-bottom:6px;">模板库（内置 + 自定义）</div>
+        <div class="row">
+          <select id="presetSelect" style="min-width:260px"></select>
+          <button id="btnApplyPreset">套用</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="btnAddPreset">新增模板</button>
+          <button id="btnRenamePreset">重命名</button>
+          <button id="btnDeletePreset">删除</button>
+          <button id="btnExportPreset">导出模板JSON</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="presetImportFile" type="file" accept=".json" />
+          <button id="btnImportPreset">导入模板JSON</button>
+        </div>
+      </div>
+
+      <!-- 右：角色卡 + 世界书 -->
+      <div>
+        <div style="font-weight:600;margin-bottom:6px;">角色导入（JSON/PNG）</div>
+        <div class="row">
+          <input id="roleFileInput" type="file" accept=".json,.png" />
+          <button id="btnParseRoleText">手动文本解析</button>
+        </div>
+        <div class="small" id="roleTip" style="margin-top:6px;">导入后仅提取关键字段，不会原文输出。</div>
+
+        <div style="font-weight:600;margin:12px 0 6px;">世界书导入（支持多选）</div>
+        <div class="row">
+          <input id="worldbookFileInput" type="file" multiple accept=".json,.txt,.md,.png" />
+          <button id="btnClearWorldbooks">清空世界书</button>
+        </div>
+        <div id="worldbookList" style="margin-top:8px;"></div>
+      </div>
+    </div>
+
+    <!-- 整块角色上下文 -->
+    <div style="margin-top:10px">
+      <div style="font-weight:600;margin-bottom:6px;">角色上下文（可编辑）</div>
+      <textarea id="roleContextInput" style="min-height:280px;" placeholder="这里是完整角色上下文区域（可粘贴角色信息，生成时参与约束）"></textarea>
+    </div>
+  </section>
+
+  <section class="block">
+    <div style="font-weight:600;margin-bottom:6px;">关键词（40个）</div>
+    <input id="keywordsInput" style="width:100%" placeholder="例如：理性, 慢热, 清冷感">
+    <div id="chips" class="chips" style="margin-top:8px"></div>
+  </section>
+
+  <section class="block gray">
+    <div style="font-weight:600;margin-bottom:6px;">人设模板（YAML）</div>
+    <textarea id="templateInput" style="min-height:260px;"></textarea>
+  </section>
+
+  <section class="block">
+    <div style="font-weight:600;margin-bottom:6px;">生成结果（可直接修改）</div>
+    <textarea id="resultOutput" style="min-height:260px;" placeholder="生成结果会在这里，可手动编辑后再复制/导出"></textarea>
+  </section>
+
+  <section class="block gray">
+    <div class="row" style="margin-bottom:8px">
+      <div style="font-weight:600">历史记录</div>
+      <input id="historySearch" placeholder="搜索历史..." style="min-width:220px">
+      <select id="historyModeFilter">
+        <option value="all">全部</option>
+        <option value="random">随机</option>
+        <option value="custom">按模板</option>
+      </select>
+      <button id="btnClearHistory">清空历史</button>
+    </div>
+    <div id="historyList"></div>
+  </section>
+</main>
+
+<!-- API设置 -->
+<div class="modal" id="modal">
+  <div class="panel">
+    <h2>API设置</h2>
+    <div class="field">
+      <label>API地址</label>
+      <input id="apiBaseUrl" placeholder="https://xxx.com 或 https://xxx.com/v1">
+    </div>
+    <div class="field">
+      <label>API密钥</label>
+      <input id="apiKey" type="password" placeholder="你的API Key">
+    </div>
+    <div class="field">
+      <label>模型</label>
+      <div class="model-row">
+        <select id="modelSelect"><option value="">请拉取模型或手填</option></select>
+        <button id="btnPullModels">拉取模型</button>
+      </div>
+      <input id="modelManual" placeholder="手填模型名（可选）" style="margin-top:8px">
+    </div>
+    <div class="field">
+      <label>温度（<span id="tempVal">0.75</span>）</label>
+      <input id="tempRange" type="range" min="0" max="2" step="0.01" value="0.75">
+    </div>
+    <div class="row">
+      <button id="btnSaveSettings">保存设置</button>
+      <button id="btnCloseSettings">关闭</button>
+      <span id="settingsTip" class="tip"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Storage keys
+  const LS_CFG="pp_cfg_v8", LS_DRAFT="pp_draft_v8", LS_HIS="pp_his_v8", LS_ROLECTX="pp_rolectx_v8", LS_WB="pp_wb_v8", LS_PRESET="pp_custom_preset_v8", LS_RESULT="pp_result_v8";
+
+  // ===== 强化 Prompt（已去字数限制，要求更丰富）=====
+  const SYSTEM_PROMPT = `你是一位精确、高效的角色设定助手。用户会提供一份基于模板的粗略角色设定。
+你的任务：
+1) 严格保持原有模板结构和键名（key）不变。
+2) 在用户信息基础上进行扩展和补全，补足逻辑链条、行为动机、时间线和细节。
+3) 语言风格清晰、简洁、客观，避免空洞形容和堆砌辞藻。
+4) 内容必须前后一致、可落地、可用于创作，不要互相矛盾。
+5) 需要结合角色卡与世界书信息，生成对应的用户人设。
+
+质量要求（重点）：
+- 不限制总字数，优先保证完整度和细节密度。
+- 允许在列表字段中增加条目数量（如 goals/weakness/likes/dislikes/skills 等），但键名不变。
+- background_story 的每个阶段都要有实质信息，避免空话。
+- appearance、attire、personality、behaviors 必须具体，避免“普通/一般/不错”等低信息词。
+- 角色卡与世界书只可吸收信息，禁止原文照抄，禁止重复粘贴原始文本。
+
+输出规则（强制）：
+- 仅输出最终 YAML。
+- 不要解释、不要前言后记、不要 Markdown 代码块。`;
+
+  const DEFAULT_TEMPLATE = `user_name:
+  Chinese name:
+  Nickname:
+  age:
+  gender:
+  height:
+  identity:
+    -
+  background_story:
+    童年(0-12岁):
+    少年(13-18岁):
+    青年(19-35岁):
+    中年(35-至今):
+    现状:
+
+  social_status:
+    -
+
+  appearance:
+    hair:
+    eyes:
+    skin:
+    face_style:
+    build:
+      -
+  attire:
+    business_formal:
+    business_casual:
+    casual_wear:
+    home_wear:
+
+  archetype:
+
+  personality:
+    core_traits:
+      - : ""
+    romantic_traits:
+      - : ""
+
+  lifestyle_behaviors:
+    -
+    -
+
+  work_behaviors:
+    -
+
+  emotional_behaviors:
+    angry:
+    happy:
+
+  goals:
+    -
+
+  weakness:
+    -
+
+  likes:
+    -
+
+  dislikes:
+    -
+
+  skills:
+    - 工作: ["",""]
+    - 生活: ["",""]
+    - 爱好: ["",""]
+
+  NSFW_information:
+    Sex_related traits:
+      experiences:
+      sexual_orientation:
+      sexual_role:
+      sexual_habits:
+        -
+    Kinks:
+    Limits:`;
+
+  const BUILTIN_PRESETS = {
+    "都市冷感执行者": DEFAULT_TEMPLATE,
+    "校园元气社交型": DEFAULT_TEMPLATE.replace("identity:\n    -", "identity:\n    - 大学社团骨干"),
+    "赛博侦查者": DEFAULT_TEMPLATE.replace("identity:\n    -", "identity:\n    - 数字取证分析师"),
+    "古风谋士": DEFAULT_TEMPLATE.replace("identity:\n    -", "identity:\n    - 幕僚参议")
+  };
+
+  // 40 keywords
+  const KEYWORDS = [
+    "理性","慢热","克制","边界感强","执行力高","清冷感","通勤极简","深度对话","结果导向","仪式感",
+    "外向","内向","高敏感","乐观","悲观","冒险","保守","自律","拖延","完美主义",
+    "共情力强","观察力强","社交达人","独处偏好","高压抗性","情绪稳定","表达克制","表达直接","反差感","幽默感",
+    "强掌控","配合型","逻辑优先","感性优先","长期主义","短期冲刺","审美洁癖","效率优先","关系导向","目标导向"
+  ];
+
+  // DOM
+  const $=id=>document.getElementById(id);
+  const tip=$("tip"), settingsTip=$("settingsTip");
+  const templateInput=$("templateInput"), roleContextInput=$("roleContextInput"), keywordsInput=$("keywordsInput"), resultOutput=$("resultOutput");
+  const historyList=$("historyList"), historySearch=$("historySearch"), historyModeFilter=$("historyModeFilter");
+  const presetSelect=$("presetSelect"), roleTip=$("roleTip"), worldbookList=$("worldbookList");
+  const modal=$("modal"), apiBaseUrl=$("apiBaseUrl"), apiKey=$("apiKey"), modelSelect=$("modelSelect"), modelManual=$("modelManual"), tempRange=$("tempRange"), tempVal=$("tempVal");
+
+  // utils
+  const safeJson=(s,d)=>{try{return JSON.parse(s)}catch{return d}};
+  const getLS=(k,d)=>{const v=localStorage.getItem(k); if(v==null) return d; return typeof d==="string" ? v : safeJson(v,d);}
+  const setLS=(k,v)=>localStorage.setItem(k, typeof v==="string"?v:JSON.stringify(v));
+  const setTip=(m)=>{tip.textContent=m||""; if(m) setTimeout(()=>tip.textContent===m&&(tip.textContent=""),1700);}
+  const setSTip=(m)=>{settingsTip.textContent=m||""; if(m) setTimeout(()=>settingsTip.textContent===m&&(settingsTip.textContent=""),1700);}
+  const now=()=>new Date().toLocaleString();
+  const uuid=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
+  const normalize=u=>(u||"").trim().replace(/\/+$/,"");
+  const parseKeywords=()=> (keywordsInput.value||"").split(/[，,]/).map(s=>s.trim()).filter(Boolean);
+
+  function cfgGet(){ return getLS(LS_CFG, {base_url:"",api_key:"",model:"",temperature:0.75}); }
+  function cfgSave(c){ setLS(LS_CFG,c); }
+
+  function saveDraft(){
+    setLS(LS_DRAFT, templateInput.value||"");
+    setLS(LS_ROLECTX, roleContextInput.value||"");
+    setLS(LS_RESULT, resultOutput.value||"");
+  }
+
+  // presets
+  function getCustomPresets(){ return getLS(LS_PRESET, []); }
+  function saveCustomPresets(list){ setLS(LS_PRESET, list); }
+  function renderPresetSelect(){
+    const customs=getCustomPresets();
+    let html=`<optgroup label="内置模板">`;
+    Object.keys(BUILTIN_PRESETS).forEach(name=>html+=`<option value="builtin::${name}">${name}</option>`);
+    html+=`</optgroup><optgroup label="自定义模板">`;
+    customs.forEach(p=>html+=`<option value="custom::${p.id}">${p.name}</option>`);
+    html+=`</optgroup>`;
+    presetSelect.innerHTML=html;
+  }
+
+  // worldbooks
+  function worldbooksGet(){ return getLS(LS_WB, []); }
+  function worldbooksSet(list){ setLS(LS_WB, list); }
+
+  function renderWorldbooks(){
+    const list=worldbooksGet();
+    if(!list.length){
+      worldbookList.innerHTML=`<div class="small">（暂无世界书）</div>`;
+      return;
+    }
+    worldbookList.innerHTML = list.map((w,idx)=>`
+      <div class="wb-item">
+        <div class="meta">${w.name} · ${w.type||"unknown"} · ${w.text.length} chars</div>
+        <div class="small">${(w.text||"").slice(0,120).replace(/\n/g," ")}</div>
+        <div class="row" style="margin-top:6px">
+          <button data-rm="${idx}">移除</button>
+          <span class="small">权重</span>
+          <select data-weight="${idx}" style="height:32px;padding:0 8px;min-width:86px">
+            <option value="low" ${w.weight==="low"?"selected":""}>弱</option>
+            <option value="mid" ${(!w.weight||w.weight==="mid")?"selected":""}>中</option>
+            <option value="high" ${w.weight==="high"?"selected":""}>强</option>
+          </select>
+        </div>
+      </div>
+    `).join("");
+
+    [...worldbookList.querySelectorAll("button[data-rm]")].forEach(btn=>{
+      btn.onclick=()=>{
+        const i=Number(btn.dataset.rm);
+        const arr=worldbooksGet();
+        arr.splice(i,1);
+        worldbooksSet(arr);
+        renderWorldbooks();
+      };
+    });
+
+    [...worldbookList.querySelectorAll("select[data-weight]")].forEach(sel=>{
+      sel.onchange=()=>{
+        const i=Number(sel.dataset.weight);
+        const arr=worldbooksGet();
+        if(!arr[i]) return;
+        arr[i].weight=sel.value;
+        worldbooksSet(arr);
+      };
+    });
+  }
+
+  function wbTextByWeight(text, weight){
+    const t = String(text||"");
+    if(weight==="low") return t.slice(0,700);
+    if(weight==="high") return t.slice(0,3500);
+    return t.slice(0,1800); // mid
+  }
+
+  // history
+  function historyGet(){ return getLS(LS_HIS, []); }
+  function historySet(list){ setLS(LS_HIS, list); }
+
+  function pushHistory(item){
+    const list=historyGet();
+    list.unshift(item);
+    if(list.length>100) list.length=100;
+    historySet(list);
+    renderHistory();
+  }
+
+  function renderHistory(){
+    const list=historyGet();
+    const kw=(historySearch.value||"").toLowerCase().trim();
+    const mode=historyModeFilter.value;
+
+    const f=list.filter(it=>{
+      const modeOK=(mode==="all" || it.mode===mode);
+      const corpus=`${it.time} ${it.mode} ${it.preview} ${it.keywords||""}`.toLowerCase();
+      return modeOK && (!kw || corpus.includes(kw));
+    });
+
+    if(!f.length){ historyList.innerHTML=`<div class="history-item">（无匹配历史）</div>`; return; }
+
+    historyList.innerHTML=f.map(it=>`
+      <div class="history-item" data-id="${it.id}">
+        <div class="meta">${it.time} · ${it.mode==="random"?"随机":"按模板"} · ${it.model||""}</div>
+        <div class="small">${(it.preview||"").replace(/\n/g," ").slice(0,140)}</div>
+      </div>
+    `).join("");
+
+    [...historyList.querySelectorAll(".history-item")].forEach(el=>{
+      el.onclick=()=>{
+        const id=el.dataset.id;
+        const item=historyGet().find(x=>x.id===id);
+        if(!item) return;
+        resultOutput.value=item.result||"";
+        templateInput.value=item.template||templateInput.value;
+        keywordsInput.value=item.keywords||"";
+        roleContextInput.value=item.roleContext||roleContextInput.value;
+      };
+    });
+  }
+
+  // API endpoints
+  function modelUrls(base){
+    const b=normalize(base);
+    if(b.endsWith("/v1")) return [`${b}/models`, `${b.slice(0,-3)}/v1/models`, `${b.slice(0,-3)}/models`];
+    return [`${b}/v1/models`, `${b}/models`];
+  }
+  function chatUrls(base){
+    const b=normalize(base);
+    if(b.endsWith("/v1")) return [`${b}/chat/completions`, `${b.slice(0,-3)}/v1/chat/completions`, `${b.slice(0,-3)}/chat/completions`];
+    return [`${b}/v1/chat/completions`, `${b}/chat/completions`];
+  }
+  function headers(key){
+    const h={"Content-Type":"application/json"};
+    if((key||"").trim()) h.Authorization=`Bearer ${key.trim()}`;
+    return h;
+  }
+
+  async function pullModels(){
+    const base=apiBaseUrl.value.trim(), key=apiKey.value.trim();
+    if(!base){ setSTip("请先填写API地址"); return; }
+    setSTip("拉取中...");
+    let lastErr="";
+    for(const u of modelUrls(base)){
+      try{
+        const r=await fetch(u,{method:"GET",headers:headers(key)});
+        if(!r.ok){ lastErr=`${r.status}`; continue; }
+        const d=await r.json();
+        let models=[];
+        if(Array.isArray(d?.data)) models=d.data.map(x=>x?.id).filter(Boolean);
+        if(!models.length && Array.isArray(d?.models)) models=d.models.map(x=>typeof x==="string"?x:x?.id).filter(Boolean);
+        if(!models.length && Array.isArray(d)) models=d.map(x=>typeof x==="string"?x:x?.id).filter(Boolean);
+
+        modelSelect.innerHTML="";
+        if(!models.length){
+          modelSelect.innerHTML=`<option value="">未拉到模型（可手填）</option>`;
+          setSTip("未拉到模型");
+        }else{
+          models.forEach(m=>{const o=document.createElement("option"); o.value=m; o.textContent=m; modelSelect.appendChild(o);});
+          modelManual.value=models[0];
+          setSTip("拉取成功");
+        }
+        return;
+      }catch(e){ lastErr=e.message||String(e); }
+    }
+    setSTip("拉取失败，可手填模型");
+    console.warn(lastErr);
+  }
+
+  function buildMessages(mode){
+    const template = templateInput.value || DEFAULT_TEMPLATE;
+    const role = (roleContextInput.value||"").trim() || "无";
+    const kws = parseKeywords();
+    const wbs = worldbooksGet();
+
+    const wbMerged = wbs.map((w,i)=>{
+      const wt = w.weight || "mid";
+      return `[世界书${i+1}|${w.name}|权重:${wt}]\n${wbTextByWeight(w.text, wt)}`;
+    }).join("\n\n") || "无";
+
+    const user = `模式: ${mode==="random"?"随机":"按模板"}
+严格只输出模板YAML，禁止输出角色卡/世界书原文。
+
+角色上下文(仅用于约束，不可原样复述):
+${role}
+
+世界书(仅用于约束，不可原样复述):
+${wbMerged}
+
+关键词:
+${kws.length?kws.join(", "):"无"}
+
+模板输入:
+${template}`;
+
+    return [
+      {role:"system",content:SYSTEM_PROMPT},
+      {role:"user",content:user}
+    ];
+  }
+
+  function sanitizeOutput(raw){
+    if(!raw) return "";
+    let t = String(raw).replace(/```yaml|```/gi,"").trim();
+    const idx = t.indexOf("user_name:");
+    if(idx>=0) t = t.slice(idx).trim();
+    const cutMarks = ["\n---\n", "\n附注", "\n说明", "\n备注", "\n（以上"];
+    for(const m of cutMarks){
+      const p=t.indexOf(m);
+      if(p>0){ t=t.slice(0,p).trim(); break; }
+    }
+    return t;
+  }
+
+  async function generate(mode){
+    const cfg=cfgGet();
+    if(!cfg.base_url || !cfg.api_key || !cfg.model){ setTip("先在API设置填地址/密钥/模型"); return; }
+
+    const payload={
+      model:cfg.model,
+      temperature:Number(cfg.temperature||0.75),
+      max_tokens: 6000,
+      messages:buildMessages(mode)
+    };
+
+    setTip("生成中...");
+    let lastErr="";
+
+    for(const u of chatUrls(cfg.base_url)){
+      try{
+        const r=await fetch(u,{method:"POST",headers:headers(cfg.api_key),body:JSON.stringify(payload)});
+        if(!r.ok){ lastErr=`${u} -> ${r.status}`; continue; }
+        const d=await r.json();
+        const raw=d?.choices?.[0]?.message?.content || d?.text || "";
+        if(!raw){ lastErr=`${u} -> 返回空`; continue; }
+
+        const cleaned=sanitizeOutput(raw);
+        resultOutput.value=cleaned || "";
+        saveDraft();
+
+        pushHistory({
+          id:uuid(),
+          time:now(),
+          mode,
+          model:cfg.model,
+          preview:(cleaned||"").slice(0,200),
+          result:cleaned||"",
+          template:templateInput.value||"",
+          keywords:parseKeywords().join(", "),
+          roleContext:roleContextInput.value||""
+        });
+
+        setTip("完成");
+        return;
+      }catch(e){ lastErr=e.message||String(e); }
+    }
+    resultOutput.value="生成失败：\n"+lastErr;
+    setTip("失败");
+  }
+
+  // file parse
+  function decodeUTF8(bytes){ try{return new TextDecoder("utf-8").decode(bytes)}catch{return ""} }
+
+  function parsePngTextChunks(buf){
+    const u8=new Uint8Array(buf), sig=[137,80,78,71,13,10,26,10];
+    for(let i=0;i<8;i++) if(u8[i]!==sig[i]) throw new Error("非PNG");
+    let p=8, out=[];
+    while(p<u8.length){
+      const len=(u8[p]<<24)|(u8[p+1]<<16)|(u8[p+2]<<8)|u8[p+3]; p+=4;
+      const type=String.fromCharCode(u8[p],u8[p+1],u8[p+2],u8[p+3]); p+=4;
+      const data=u8.slice(p,p+len); p+=len; p+=4;
+      if(type==="tEXt"){
+        const z=data.indexOf(0);
+        if(z>0) out.push({key:decodeUTF8(data.slice(0,z)), val:decodeUTF8(data.slice(z+1))});
+      }else if(type==="iTXt"){
+        let i=0; while(i<data.length&&data[i]!==0)i++; const key=decodeUTF8(data.slice(0,i)); i++;
+        i++; i++; while(i<data.length&&data[i]!==0)i++; i++; while(i<data.length&&data[i]!==0)i++; i++;
+        out.push({key, val:decodeUTF8(data.slice(i))});
+      }
+    }
+    return out;
+  }
+
+  function toRoleContext(obj){
+    const o=obj?.data||obj||{};
+    const pick=(...keys)=>{for(const k of keys){if(o?.[k]) return o[k]} return ""};
+    return [
+      `name: ${pick("name","char_name","character_name")}`,
+      `description: ${pick("description","desc")}`,
+      `personality: ${pick("personality")}`,
+      `scenario: ${pick("scenario")}`,
+      `first_message: ${pick("first_mes","first_message")}`,
+      `tags: ${Array.isArray(o.tags)?o.tags.join(", "):(o.tags||"")}`
+    ].join("\n").trim();
+  }
+
+  function worldbookToText(obj){
+    const x=obj?.data||obj||{};
+    let entries=x.entries || x.worldbook?.entries || x.lorebook?.entries || [];
+    if(!Array.isArray(entries) && typeof entries==="object") entries=Object.values(entries);
+    if(Array.isArray(entries) && entries.length){
+      return entries.map((e,i)=>{
+        const keys=e.keys || e.key || e.primary_keys || [];
+        const sec=e.secondary_keys || [];
+        const content=e.content || e.entry || e.text || "";
+        return `[Entry ${i+1}] keys:${Array.isArray(keys)?keys.join(", "):keys} sec:${Array.isArray(sec)?sec.join(", "):sec}\n${content}`;
+      }).join("\n\n");
+    }
+    return JSON.stringify(obj).slice(0,15000);
+  }
+
+  async function parseRoleFile(file){
+    const name=file.name.toLowerCase();
+    if(name.endsWith(".json")){
+      const txt=await file.text();
+      const obj=JSON.parse(txt);
+      roleContextInput.value=toRoleContext(obj); // 仅关键字段
+      roleTip.textContent="角色JSON解析成功（仅关键字段）";
+      saveDraft();
+      return;
+    }
+    if(name.endsWith(".png")){
+      const chunks=parsePngTextChunks(await file.arrayBuffer());
+      let parsed=null;
+      for(const c of chunks){
+        const key=(c.key||"").toLowerCase(), val=(c.val||"").trim();
+        if(!val) continue;
+        if(key.includes("chara") || key.includes("char") || val.startsWith("{")){
+          try{ parsed=JSON.parse(val); break; }catch{}
+          try{
+            const b=atob(val);
+            const t=new TextDecoder("utf-8").decode(Uint8Array.from(b, ch=>ch.charCodeAt(0)));
+            parsed=JSON.parse(t); break;
+          }catch{}
+        }
+      }
+      if(parsed){
+        roleContextInput.value=toRoleContext(parsed);
+        roleTip.textContent="角色PNG解析成功（仅关键字段）";
+      }else{
+        roleTip.textContent="PNG读取成功，但未识别标准角色字段";
+      }
+      saveDraft();
+      return;
+    }
+    roleTip.textContent="仅支持JSON/PNG";
+  }
+
+  async function importWorldbookFiles(files){
+    const arr=worldbooksGet();
+    for(const f of files){
+      const n=f.name.toLowerCase();
+      try{
+        if(n.endsWith(".txt")||n.endsWith(".md")){
+          arr.push({name:f.name,type:"text",weight:"mid",text:(await f.text()).slice(0,20000)});
+        }else if(n.endsWith(".json")){
+          const txt=await f.text();
+          const obj=JSON.parse(txt);
+          arr.push({name:f.name,type:"json",weight:"mid",text:worldbookToText(obj).slice(0,20000)});
+        }else if(n.endsWith(".png")){
+          const chunks=parsePngTextChunks(await f.arrayBuffer());
+          let wb=null;
+          for(const c of chunks){
+            const key=(c.key||"").toLowerCase(), val=(c.val||"").trim();
+            if(!val) continue;
+            if(key.includes("world")||key.includes("lore")||val.startsWith("{")){
+              try{ wb=JSON.parse(val); break; }catch{}
+              try{
+                const b=atob(val);
+                const t=new TextDecoder("utf-8").decode(Uint8Array.from(b, ch=>ch.charCodeAt(0)));
+                wb=JSON.parse(t); break;
+              }catch{}
+            }
+          }
+          arr.push({name:f.name,type:"png",weight:"mid",text:wb?worldbookToText(wb).slice(0,20000):"（未识别标准世界书结构）"});
+        }
+      }catch(e){
+        arr.push({name:f.name,type:"error",weight:"mid",text:"导入失败："+(e.message||e)});
+      }
+    }
+    worldbooksSet(arr);
+    renderWorldbooks();
+  }
+
+  // init
+  function initChips(){
+    $("chips").innerHTML = KEYWORDS.map(k=>`<span class="chip">${k}</span>`).join("");
+    [...document.querySelectorAll(".chip")].forEach(el=>{
+      el.onclick=()=>{
+        const v=el.textContent;
+        const arr=parseKeywords();
+        if(!arr.includes(v)) arr.push(v);
+        keywordsInput.value=arr.join(", ");
+      };
+    });
+  }
+
+  function initLoad(){
+    const cfg=cfgGet();
+    apiBaseUrl.value=cfg.base_url||"";
+    apiKey.value=cfg.api_key||"";
+    modelManual.value=cfg.model||"";
+    modelSelect.innerHTML=`<option value="${cfg.model||""}">${cfg.model||"请拉取模型或手填"}</option>`;
+    tempRange.value=cfg.temperature ?? 0.75;
+    tempVal.textContent=Number(tempRange.value).toFixed(2);
+
+    templateInput.value=getLS(LS_DRAFT, DEFAULT_TEMPLATE)||DEFAULT_TEMPLATE;
+    roleContextInput.value=getLS(LS_ROLECTX, "");
+    resultOutput.value=getLS(LS_RESULT, "");
+    renderPresetSelect();
+    renderWorldbooks();
+    renderHistory();
+  }
+
+  // events
+  $("btnOpenSettings").onclick=()=>modal.classList.add("show");
+  $("btnCloseSettings").onclick=()=>modal.classList.remove("show");
+  tempRange.oninput=()=>tempVal.textContent=Number(tempRange.value).toFixed(2);
+
+  $("btnSaveSettings").onclick=()=>{
+    cfgSave({
+      base_url: normalize(apiBaseUrl.value),
+      api_key: apiKey.value.trim(),
+      model: (modelManual.value || modelSelect.value || "").trim(),
+      temperature: Number(tempRange.value || 0.75)
+    });
+    setSTip("已保存");
+  };
+  $("btnPullModels").onclick=pullModels;
+  modelSelect.onchange=()=>modelManual.value=modelSelect.value||"";
+
+  $("btnRandom").onclick=()=>generate("random");
+  $("btnGenerate").onclick=()=>generate("custom");
+
+  $("btnCopy").onclick=async()=>{
+    const txt=resultOutput.value||"";
+    if(!txt) return setTip("没有可复制内容");
+    try{ await navigator.clipboard.writeText(txt); setTip("已复制"); }catch{ setTip("复制失败"); }
+  };
+
+  $("btnExport").onclick=()=>{
+    const txt=resultOutput.value||"";
+    if(!txt) return setTip("没有可导出内容");
+    const d=new Date(), p=n=>String(n).padStart(2,"0");
+    const name=`persona_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.txt`;
+    const blob=new Blob([txt],{type:"text/plain;charset=utf-8"});
+    const u=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u);
+    setTip("已导出TXT");
+  };
+
+  $("btnClearResult").onclick=()=>{
+    resultOutput.value="";
+    saveDraft();
+    setTip("结果已清空");
+  };
+
+  templateInput.addEventListener("input", saveDraft);
+  roleContextInput.addEventListener("input", saveDraft);
+  resultOutput.addEventListener("input", saveDraft);
+  window.addEventListener("beforeunload", saveDraft);
+
+  historySearch.oninput=renderHistory;
+  historyModeFilter.onchange=renderHistory;
+  $("btnClearHistory").onclick=()=>{ if(confirm("确定清空历史？")){ historySet([]); renderHistory(); } };
+
+  $("btnApplyPreset").onclick=()=>{
+    const v=presetSelect.value||"";
+    if(!v) return;
+    if(!confirm("套用将覆盖当前模板，继续？")) return;
+    if(v.startsWith("builtin::")) templateInput.value=BUILTIN_PRESETS[v.slice(9)] || DEFAULT_TEMPLATE;
+    else{
+      const p=getCustomPresets().find(x=>x.id===v.slice(8));
+      if(p) templateInput.value=p.content;
+    }
+    saveDraft(); setTip("已套用模板");
+  };
+
+  $("btnAddPreset").onclick=()=>{
+    const name=prompt("新模板名称：");
+    if(!name||!name.trim()) return;
+    const list=getCustomPresets();
+    list.push({id:uuid(),name:name.trim(),content:templateInput.value||DEFAULT_TEMPLATE});
+    saveCustomPresets(list); renderPresetSelect(); setTip("已新增模板");
+  };
+
+  $("btnRenamePreset").onclick=()=>{
+    const v=presetSelect.value||"";
+    if(!v.startsWith("custom::")) return setTip("请选择自定义模板");
+    const id=v.slice(8), list=getCustomPresets(), i=list.findIndex(x=>x.id===id);
+    if(i<0) return;
+    const n=prompt("新名称：", list[i].name);
+    if(!n||!n.trim()) return;
+    list[i].name=n.trim(); saveCustomPresets(list); renderPresetSelect(); setTip("已重命名");
+  };
+
+  $("btnDeletePreset").onclick=()=>{
+    const v=presetSelect.value||"";
+    if(!v.startsWith("custom::")) return setTip("内置模板不可删");
+    if(!confirm("确定删除该自定义模板？")) return;
+    saveCustomPresets(getCustomPresets().filter(x=>x.id!==v.slice(8)));
+    renderPresetSelect(); setTip("已删除");
+  };
+
+  $("btnExportPreset").onclick=()=>{
+    const data={custom:getCustomPresets()};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json;charset=utf-8"});
+    const u=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=u; a.download="template_presets.json"; a.click(); URL.revokeObjectURL(u);
+    setTip("模板库已导出");
+  };
+
+  $("btnImportPreset").onclick=()=>{
+    const f=$("presetImportFile").files?.[0];
+    if(!f) return setTip("先选择JSON文件");
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const obj=JSON.parse(String(rd.result||"{}"));
+        const arr=(obj.custom||obj||[]);
+        const cleaned=(Array.isArray(arr)?arr:[]).filter(x=>x&&x.name&&x.content).map(x=>({
+          id:x.id||uuid(),name:String(x.name),content:String(x.content)
+        }));
+        if(!cleaned.length) return setTip("未找到可导入模板");
+        saveCustomPresets([...getCustomPresets(), ...cleaned]);
+        renderPresetSelect(); setTip("模板导入成功");
+      }catch{ setTip("导入失败：JSON格式错误"); }
+    };
+    rd.readAsText(f,"utf-8");
+  };
+
+  $("roleFileInput").onchange=(e)=>{
+    const f=e.target.files?.[0];
+    if(f) parseRoleFile(f).catch(err=>roleTip.textContent="解析失败："+(err.message||err));
+    e.target.value="";
+  };
+
+  $("btnParseRoleText").onclick=()=>{
+    const t=(roleContextInput.value||"").trim();
+    if(!t) return roleTip.textContent="角色文本为空";
+    if(t.startsWith("{")){
+      try{
+        roleContextInput.value=toRoleContext(JSON.parse(t));
+        roleTip.textContent="手动JSON解析成功（仅关键字段）";
+        saveDraft();
+        return;
+      }catch{}
+    }
+    roleTip.textContent="已按纯文本使用";
+    saveDraft();
+  };
+
+  $("worldbookFileInput").onchange=(e)=>{
+    const files=[...(e.target.files||[])];
+    if(files.length) importWorldbookFiles(files);
+    e.target.value="";
+  };
+
+  $("btnClearWorldbooks").onclick=()=>{
+    if(confirm("确定清空所有世界书？")){
+      worldbooksSet([]);
+      renderWorldbooks();
+    }
+  };
+
+  initChips();
+  initLoad();
+})();
+</script>
+</body>
+</html>
